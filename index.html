@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Altin Al-Sat Takip</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --gold: #f0b90b;
+    --gold-dim: #c9981a;
+    --green: #0ecb81;
+    --red: #f6465d;
+    --text: #eaecef;
+    --text-dim: #848e9c;
+    --input-bg: #12141c;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 1rem;
+  }
+  .container { max-width: 800px; margin: 0 auto; }
+
+  header {
+    text-align: center;
+    padding: 1.5rem 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+  }
+  header h1 {
+    font-size: 1.5rem;
+    color: var(--gold);
+    letter-spacing: 1px;
+  }
+
+  /* Live Price */
+  .live-price {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .live-price .label {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+  .live-price .price {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--gold);
+  }
+  .live-price .price.loading {
+    font-size: 1rem;
+    color: var(--text-dim);
+  }
+  .live-price .meta {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+
+  /* Summary */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .summary-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+  }
+  .summary-card .label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .summary-card .value {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .summary-card .value.green { color: var(--green); }
+  .summary-card .value.red { color: var(--red); }
+  .summary-card .value.gold { color: var(--gold); }
+
+  /* Form */
+  .form-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .form-section h2 {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    color: var(--text);
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 0.75rem;
+    align-items: end;
+  }
+  @media (max-width: 600px) {
+    .form-row {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .form-group label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 0.35rem;
+  }
+  .form-group input, .form-group select {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus, .form-group select:focus {
+    border-color: var(--gold);
+  }
+  .form-group input::placeholder { color: var(--text-dim); }
+
+  .btn {
+    padding: 0.6rem 1.25rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-buy {
+    background: var(--green);
+    color: #fff;
+  }
+  .btn-sell {
+    background: var(--red);
+    color: #fff;
+  }
+  .btn-group {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  /* History */
+  .history-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .history-section h2 {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+  .history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .history-table th {
+    text-align: left;
+    color: var(--text-dim);
+    font-weight: 500;
+    padding: 0.5rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .history-table td {
+    padding: 0.6rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .history-table tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .badge-buy { background: rgba(14,203,129,0.15); color: var(--green); }
+  .badge-sell { background: rgba(246,70,93,0.15); color: var(--red); }
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+  }
+  .delete-btn:hover {
+    color: var(--red);
+    background: rgba(246,70,93,0.1);
+  }
+  .empty-state {
+    text-align: center;
+    color: var(--text-dim);
+    padding: 2rem 0;
+    font-size: 0.9rem;
+  }
+
+  /* Responsive table wrapper */
+  .table-wrap {
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>ALTIN AL-SAT TAKIP</h1>
+  </header>
+
+  <!-- Live Price -->
+  <div class="live-price">
+    <div>
+      <div class="label">Anlik Gram Altin Fiyati</div>
+      <div class="price loading" id="livePrice">Yukleniyor...</div>
+      <div class="meta" id="livePriceTime"></div>
+    </div>
+    <div style="text-align:right">
+      <div class="form-group" style="margin-bottom:0">
+        <label style="font-size:0.7rem">Manuel Fiyat (TL/gr)</label>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <input type="number" id="manualPrice" placeholder="ornek: 3245" step="any" min="0" style="width:140px;padding:0.4rem 0.6rem;font-size:0.85rem;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none;" onchange="setManualPrice()">
+          <button class="btn" style="background:var(--gold);color:#000;padding:0.4rem 0.75rem;font-size:0.8rem;" onclick="setManualPrice()">Uygula</button>
+          <button class="btn" style="background:var(--border);color:var(--text);padding:0.4rem 0.75rem;font-size:0.8rem;" onclick="fetchLivePrice()">Otomatik</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary">
+    <div class="summary-card">
+      <div class="label">Toplam Altin (gr)</div>
+      <div class="value gold" id="totalGrams">0.00</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Ortalama Maliyet</div>
+      <div class="value" id="avgCost">0.00 TL</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Toplam Yatirim</div>
+      <div class="value" id="totalInvested">0.00 TL</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Kar / Zarar</div>
+      <div class="value" id="profitLoss">- TL</div>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div class="form-section">
+    <h2>Yeni Islem Ekle</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Miktar (gram)</label>
+        <input type="number" id="inputGrams" placeholder="0.00" step="any" min="0">
+      </div>
+      <div class="form-group">
+        <label>Kur (TL/gram)</label>
+        <input type="number" id="inputRate" placeholder="0.00" step="any" min="0">
+      </div>
+      <div class="form-group">
+        <label>Tarih</label>
+        <input type="date" id="inputDate">
+      </div>
+      <div class="form-group">
+        <label>&nbsp;</label>
+        <div class="btn-group">
+          <button class="btn btn-buy" onclick="addTransaction('buy')">AL</button>
+          <button class="btn btn-sell" onclick="addTransaction('sell')">SAT</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="history-section">
+    <h2>Islem Gecmisi</h2>
+    <div class="table-wrap">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Tarih</th>
+            <th>Tip</th>
+            <th>Miktar (gr)</th>
+            <th>Kur (TL/gr)</th>
+            <th>Tutar (TL)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState">Henuz islem yok.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'altin_alsatlar';
+let currentLivePrice = 0; // global live price as a raw number
+
+function getTransactions() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch { return []; }
+}
+
+function saveTransactions(txs) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(txs));
+}
+
+function formatNumber(n, decimals = 2) {
+  return n.toLocaleString('tr-TR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function setLivePrice(price, source) {
+  currentLivePrice = price;
+  const el = document.getElementById('livePrice');
+  const timeEl = document.getElementById('livePriceTime');
+  el.textContent = formatNumber(price) + ' TL';
+  el.className = 'price';
+  timeEl.textContent = source + ' - ' + new Date().toLocaleTimeString('tr-TR');
+  render();
+}
+
+function setManualPrice() {
+  const val = parseFloat(document.getElementById('manualPrice').value);
+  if (!val || val <= 0) {
+    alert('Gecerli bir fiyat girin.');
+    return;
+  }
+  setLivePrice(val, 'Manuel');
+}
+
+function addTransaction(type) {
+  const grams = parseFloat(document.getElementById('inputGrams').value);
+  const rate = parseFloat(document.getElementById('inputRate').value);
+  const date = document.getElementById('inputDate').value;
+
+  if (!grams || grams <= 0 || !rate || rate <= 0) {
+    alert('Miktar ve kur alanlari gecerli degerler olmalidir.');
+    return;
+  }
+  if (!date) {
+    alert('Tarih secmelisiniz.');
+    return;
+  }
+
+  const txs = getTransactions();
+  txs.push({
+    id: Date.now(),
+    type,
+    grams,
+    rate,
+    total: grams * rate,
+    date
+  });
+  saveTransactions(txs);
+
+  document.getElementById('inputGrams').value = '';
+  document.getElementById('inputRate').value = '';
+
+  render();
+}
+
+function deleteTransaction(id) {
+  const txs = getTransactions().filter(t => t.id !== id);
+  saveTransactions(txs);
+  render();
+}
+
+function calculateSummary(txs) {
+  let totalGrams = 0;
+  let totalCost = 0;
+  let realizedPL = 0; // profit/loss from completed sales
+  let totalSoldGrams = 0;
+
+  const sorted = [...txs].sort((a, b) => a.id - b.id);
+
+  for (const tx of sorted) {
+    if (tx.type === 'buy') {
+      totalCost += tx.grams * tx.rate;
+      totalGrams += tx.grams;
+    } else {
+      const avgAtSell = totalGrams > 0 ? totalCost / totalGrams : 0;
+      const costOfSold = avgAtSell * tx.grams;
+      const sellRevenue = tx.grams * tx.rate;
+      realizedPL += sellRevenue - costOfSold;
+      totalCost -= costOfSold;
+      totalGrams -= tx.grams;
+      totalSoldGrams += tx.grams;
+      if (totalGrams < 0) totalGrams = 0;
+      if (totalCost < 0) totalCost = 0;
+    }
+  }
+
+  const avgCost = totalGrams > 0 ? totalCost / totalGrams : 0;
+
+  return { totalGrams, avgCost, totalCost, realizedPL, totalSoldGrams };
+}
+
+function render() {
+  const txs = getTransactions();
+  const sorted = [...txs].sort((a, b) => {
+    const d = b.date.localeCompare(a.date);
+    return d !== 0 ? d : b.id - a.id;
+  });
+  const tbody = document.getElementById('historyBody');
+  const empty = document.getElementById('emptyState');
+
+  if (sorted.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = sorted.map(tx => `
+      <tr>
+        <td>${tx.date}</td>
+        <td><span class="badge badge-${tx.type}">${tx.type === 'buy' ? 'ALIS' : 'SATIS'}</span></td>
+        <td>${formatNumber(tx.grams, 4)}</td>
+        <td>${formatNumber(tx.rate)}</td>
+        <td>${formatNumber(tx.grams * tx.rate)}</td>
+        <td><button class="delete-btn" onclick="deleteTransaction(${tx.id})" title="Sil">&times;</button></td>
+      </tr>
+    `).join('');
+  }
+
+  const summary = calculateSummary(txs);
+  document.getElementById('totalGrams').textContent = formatNumber(summary.totalGrams, 4);
+  document.getElementById('avgCost').textContent = formatNumber(summary.avgCost) + ' TL';
+  document.getElementById('totalInvested').textContent = formatNumber(summary.totalCost) + ' TL';
+
+  // P/L: realized (from sales) + unrealized (current holdings vs live price)
+  const plEl = document.getElementById('profitLoss');
+  const hasHoldings = summary.totalGrams > 0;
+  const hasSales = summary.totalSoldGrams > 0;
+  const hasLive = currentLivePrice > 0;
+
+  if (hasHoldings && hasLive) {
+    // unrealized P/L on current holdings
+    const unrealizedPL = (summary.totalGrams * currentLivePrice) - summary.totalCost;
+    const totalPL = summary.realizedPL + unrealizedPL;
+    // % based on total money ever put in (current cost + realized gains already extracted)
+    const totalBasis = summary.totalCost + (summary.realizedPL < 0 ? 0 : 0); // use current cost for %
+    const totalInflow = summary.totalCost - summary.realizedPL; // approximate original total cost
+    const plPct = summary.totalCost > 0 ? (totalPL / summary.totalCost) * 100 : 0;
+    plEl.textContent = (totalPL >= 0 ? '+' : '') + formatNumber(totalPL) + ' TL (' + (totalPL >= 0 ? '+' : '') + formatNumber(plPct, 1) + '%)';
+    if (summary.realizedPL !== 0) {
+      plEl.textContent += ' [Satis kari: ' + (summary.realizedPL >= 0 ? '+' : '') + formatNumber(summary.realizedPL) + ' TL]';
+    }
+    plEl.className = 'value ' + (totalPL >= 0 ? 'green' : 'red');
+  } else if (!hasHoldings && hasSales) {
+    // All sold - only realized P/L
+    const pl = summary.realizedPL;
+    plEl.textContent = (pl >= 0 ? '+' : '') + formatNumber(pl) + ' TL (gerceklesmis)';
+    plEl.className = 'value ' + (pl >= 0 ? 'green' : 'red');
+  } else if (hasHoldings && !hasLive) {
+    if (hasSales && summary.realizedPL !== 0) {
+      const pl = summary.realizedPL;
+      plEl.textContent = (pl >= 0 ? '+' : '') + formatNumber(pl) + ' TL (satis kari, canli fiyat yok)';
+      plEl.className = 'value ' + (pl >= 0 ? 'green' : 'red');
+    } else {
+      plEl.textContent = '- TL (canli fiyat girin)';
+      plEl.className = 'value';
+    }
+  } else {
+    plEl.textContent = '- TL';
+    plEl.className = 'value';
+  }
+}
+
+// Parse Turkish formatted number string like "3.245,67" to 3245.67
+function parseTrNumber(str) {
+  if (typeof str === 'number') return str;
+  if (!str) return 0;
+  return parseFloat(String(str).replace(/\./g, '').replace(',', '.')) || 0;
+}
+
+// Live price fetch with multiple fallbacks
+async function fetchLivePrice() {
+  const el = document.getElementById('livePrice');
+  const timeEl = document.getElementById('livePriceTime');
+  el.textContent = 'Yukleniyor...';
+  el.className = 'price loading';
+
+  const apis = [
+    async () => {
+      const res = await fetch('https://finans.truncgil.com/v4/today.json');
+      if (!res.ok) throw new Error('not ok');
+      const data = await res.json();
+      const gram = data['gram-altin'] || data['gram-altın'];
+      if (!gram) throw new Error('no gram-altin key');
+      const price = parseTrNumber(gram.Alis || gram.alis || gram.Satis || gram.satis);
+      if (price <= 0) throw new Error('invalid price');
+      return price;
+    },
+    async () => {
+      const res = await fetch('https://api.genelpara.com/embed/altin.json');
+      if (!res.ok) throw new Error('not ok');
+      const data = await res.json();
+      const gram = data['GA'] || data['gram-altin'];
+      if (!gram) throw new Error('no GA key');
+      const price = parseTrNumber(gram.alis || gram.satis);
+      if (price <= 0) throw new Error('invalid price');
+      return price;
+    },
+    async () => {
+      const res = await fetch('https://api.collectapi.com/economy/goldPrice', {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) throw new Error('not ok');
+      const data = await res.json();
+      if (!data.success || !data.result) throw new Error('no result');
+      const gram = data.result.find(r => r.name && r.name.includes('Gram'));
+      if (!gram) throw new Error('no gram');
+      const price = parseFloat(gram.buying || gram.price);
+      if (price <= 0) throw new Error('invalid price');
+      return price;
+    }
+  ];
+
+  for (const apiFn of apis) {
+    try {
+      const price = await apiFn();
+      setLivePrice(price, 'Otomatik');
+      return;
+    } catch {
+      // try next
+    }
+  }
+
+  // All APIs failed
+  el.textContent = 'Fiyat alinamadi';
+  el.className = 'price loading';
+  timeEl.textContent = 'Sagdaki alana manuel fiyat girin';
+}
+
+// Init
+document.getElementById('inputDate').value = new Date().toISOString().split('T')[0];
+render();
+fetchLivePrice();
+setInterval(fetchLivePrice, 5 * 60 * 1000);
+</script>
+</body>
+</html>
