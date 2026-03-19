@@ -228,6 +228,71 @@
   .table-wrap {
     overflow-x: auto;
   }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.6rem 1.25rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .tab-btn:hover {
+    color: var(--text);
+  }
+  .tab-btn.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+  }
+  .tab-content {
+    display: none;
+  }
+  .tab-content.active {
+    display: block;
+  }
+
+  /* Daily P/L */
+  .daily-pl-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .daily-pl-table th {
+    text-align: left;
+    color: var(--text-dim);
+    font-weight: 500;
+    padding: 0.5rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .daily-pl-table td {
+    padding: 0.6rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .daily-pl-table tr:last-child td { border-bottom: none; }
+  .daily-pl-table .pl-positive { color: var(--green); font-weight: 600; }
+  .daily-pl-table .pl-negative { color: var(--red); font-weight: 600; }
+  .daily-pl-total {
+    background: rgba(240, 185, 11, 0.05);
+    font-weight: 700;
+  }
+  .daily-pl-total td {
+    border-top: 2px solid var(--border);
+    padding-top: 0.75rem;
+  }
 </style>
 </head>
 <body>
@@ -298,24 +363,50 @@
     </div>
   </div>
 
-  <!-- History -->
+  <!-- History & Daily P/L -->
   <div class="history-section">
-    <h2>Islem Gecmisi</h2>
-    <div class="table-wrap">
-      <table class="history-table">
-        <thead>
-          <tr>
-            <th>Tarih</th>
-            <th>Tip</th>
-            <th>Miktar (gr)</th>
-            <th>Kur (TL/gr)</th>
-            <th>Tutar (TL)</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="historyBody"></tbody>
-      </table>
-      <div class="empty-state" id="emptyState">Henuz islem yok.</div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('history')">Islem Gecmisi</button>
+      <button class="tab-btn" onclick="switchTab('dailypl')">Gunluk Kar/Zarar</button>
+    </div>
+
+    <div class="tab-content active" id="tabHistory">
+      <div class="table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Tarih</th>
+              <th>Tip</th>
+              <th>Miktar (gr)</th>
+              <th>Kur (TL/gr)</th>
+              <th>Tutar (TL)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+        <div class="empty-state" id="emptyState">Henuz islem yok.</div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tabDailyPL">
+      <div class="table-wrap">
+        <table class="daily-pl-table">
+          <thead>
+            <tr>
+              <th>Tarih</th>
+              <th>Alislar (TL)</th>
+              <th>Satislar (TL)</th>
+              <th>Eldeki (gr)</th>
+              <th>Ort. Maliyet</th>
+              <th>Guncel Deger</th>
+              <th>Kar / Zarar</th>
+            </tr>
+          </thead>
+          <tbody id="dailyPLBody"></tbody>
+        </table>
+        <div class="empty-state" id="emptyStatePL">Henuz islem yok.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -431,6 +522,138 @@ function calculateSummary(txs) {
   return { totalGrams, avgCost, totalCost, realizedPL, totalSoldGrams, totalBuyAmount, totalSellAmount };
 }
 
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  if (tab === 'history') {
+    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    document.getElementById('tabHistory').classList.add('active');
+  } else {
+    document.querySelectorAll('.tab-btn')[1].classList.add('active');
+    document.getElementById('tabDailyPL').classList.add('active');
+  }
+}
+
+function calculateDailyPL(txs) {
+  // Group transactions by date
+  const dateMap = {};
+  for (const tx of txs) {
+    if (!dateMap[tx.date]) dateMap[tx.date] = [];
+    dateMap[tx.date].push(tx);
+  }
+
+  const dates = Object.keys(dateMap).sort();
+  const rows = [];
+  let runningGrams = 0;
+  let runningCost = 0;
+
+  for (const date of dates) {
+    const dayTxs = dateMap[date];
+    let dayBuy = 0;
+    let daySell = 0;
+    let dayRealizedPL = 0;
+
+    for (const tx of dayTxs) {
+      if (tx.type === 'buy') {
+        runningCost += tx.grams * tx.rate;
+        runningGrams += tx.grams;
+        dayBuy += tx.grams * tx.rate;
+      } else {
+        const avgAtSell = runningGrams > 0 ? runningCost / runningGrams : 0;
+        const costOfSold = avgAtSell * tx.grams;
+        const sellRevenue = tx.grams * tx.rate;
+        dayRealizedPL += sellRevenue - costOfSold;
+        runningCost -= costOfSold;
+        runningGrams -= tx.grams;
+        daySell += sellRevenue;
+        if (runningGrams < 0) runningGrams = 0;
+        if (runningCost < 0) runningCost = 0;
+      }
+    }
+
+    const avgCost = runningGrams > 0 ? runningCost / runningGrams : 0;
+    const currentValue = currentLivePrice > 0 ? runningGrams * currentLivePrice : 0;
+    const unrealizedPL = currentLivePrice > 0 && runningGrams > 0 ? currentValue - runningCost : 0;
+
+    rows.push({
+      date,
+      dayBuy,
+      daySell,
+      holdingGrams: runningGrams,
+      avgCost,
+      currentValue,
+      realizedPL: dayRealizedPL,
+      unrealizedPL,
+      totalPL: dayRealizedPL + unrealizedPL
+    });
+  }
+
+  return rows;
+}
+
+function renderDailyPL() {
+  const txs = getTransactions();
+  const tbody = document.getElementById('dailyPLBody');
+  const empty = document.getElementById('emptyStatePL');
+
+  if (txs.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+
+  empty.style.display = 'none';
+  const rows = calculateDailyPL(txs);
+  const hasLive = currentLivePrice > 0;
+
+  let totalBuy = 0, totalSell = 0, totalPL = 0;
+
+  let html = rows.map(r => {
+    totalBuy += r.dayBuy;
+    totalSell += r.daySell;
+
+    let plText, plClass;
+    if (hasLive) {
+      plText = (r.totalPL >= 0 ? '+' : '') + formatNumber(r.totalPL) + ' TL';
+      plClass = r.totalPL >= 0 ? 'pl-positive' : 'pl-negative';
+    } else if (r.realizedPL !== 0) {
+      plText = (r.realizedPL >= 0 ? '+' : '') + formatNumber(r.realizedPL) + ' TL';
+      plClass = r.realizedPL >= 0 ? 'pl-positive' : 'pl-negative';
+    } else {
+      plText = '-';
+      plClass = '';
+    }
+
+    return `<tr>
+      <td>${r.date}</td>
+      <td>${r.dayBuy > 0 ? formatNumber(r.dayBuy) : '-'}</td>
+      <td>${r.daySell > 0 ? formatNumber(r.daySell) : '-'}</td>
+      <td>${formatNumber(r.holdingGrams, 4)}</td>
+      <td>${r.avgCost > 0 ? formatNumber(r.avgCost) + ' TL' : '-'}</td>
+      <td>${hasLive && r.holdingGrams > 0 ? formatNumber(r.currentValue) + ' TL' : '-'}</td>
+      <td class="${plClass}">${plText}</td>
+    </tr>`;
+  }).join('');
+
+  // Total row
+  const lastRow = rows[rows.length - 1];
+  if (hasLive && lastRow) {
+    const finalPL = lastRow.unrealizedPL + rows.reduce((s, r) => s + r.realizedPL, 0);
+    const finalClass = finalPL >= 0 ? 'pl-positive' : 'pl-negative';
+    html += `<tr class="daily-pl-total">
+      <td>TOPLAM</td>
+      <td>${formatNumber(totalBuy)}</td>
+      <td>${formatNumber(totalSell)}</td>
+      <td>${formatNumber(lastRow.holdingGrams, 4)}</td>
+      <td>${lastRow.avgCost > 0 ? formatNumber(lastRow.avgCost) + ' TL' : '-'}</td>
+      <td>${lastRow.holdingGrams > 0 ? formatNumber(lastRow.currentValue) + ' TL' : '-'}</td>
+      <td class="${finalClass}">${(finalPL >= 0 ? '+' : '') + formatNumber(finalPL)} TL</td>
+    </tr>`;
+  }
+
+  tbody.innerHTML = html;
+}
+
 function render() {
   const txs = getTransactions();
   const sorted = [...txs].sort((a, b) => {
@@ -496,6 +719,8 @@ function render() {
     plEl.textContent = '- TL';
     plEl.className = 'value';
   }
+
+  renderDailyPL();
 }
 
 // Init
