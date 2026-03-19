@@ -61,14 +61,6 @@
     font-weight: 700;
     color: var(--gold);
   }
-  .live-price .price.loading {
-    font-size: 1rem;
-    color: var(--text-dim);
-  }
-  .live-price .meta {
-    font-size: 0.75rem;
-    color: var(--text-dim);
-  }
 
   /* Summary */
   .summary {
@@ -244,22 +236,15 @@
     <h1>ALTIN AL-SAT TAKIP</h1>
   </header>
 
-  <!-- Live Price -->
+  <!-- Guncel Kur -->
   <div class="live-price">
     <div>
-      <div class="label">Anlik Gram Altin Fiyati</div>
-      <div class="price loading" id="livePrice">Yukleniyor...</div>
-      <div class="meta" id="livePriceTime"></div>
+      <div class="label">Guncel Kur (TL/gr)</div>
+      <div class="price" id="currentPrice" style="font-size:1.5rem;">-</div>
     </div>
-    <div style="text-align:right">
-      <div class="form-group" style="margin-bottom:0">
-        <label style="font-size:0.7rem">Manuel Fiyat (TL/gr)</label>
-        <div style="display:flex;gap:0.5rem;align-items:center">
-          <input type="number" id="manualPrice" placeholder="ornek: 3245" step="any" min="0" style="width:140px;padding:0.4rem 0.6rem;font-size:0.85rem;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none;" onchange="setManualPrice()">
-          <button class="btn" style="background:var(--gold);color:#000;padding:0.4rem 0.75rem;font-size:0.8rem;" onclick="setManualPrice()">Uygula</button>
-          <button class="btn" style="background:var(--border);color:var(--text);padding:0.4rem 0.75rem;font-size:0.8rem;" onclick="fetchLivePrice()">Otomatik</button>
-        </div>
-      </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+      <input type="number" id="manualPrice" placeholder="TL/gr" step="any" min="0" style="width:130px;padding:0.4rem 0.6rem;font-size:0.85rem;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none;" onchange="setManualPrice()">
+      <button class="btn" style="background:var(--gold);color:#000;padding:0.4rem 0.75rem;font-size:0.8rem;" onclick="setManualPrice()">Uygula</button>
     </div>
   </div>
 
@@ -272,6 +257,10 @@
     <div class="summary-card">
       <div class="label">Ortalama Maliyet</div>
       <div class="value" id="avgCost">0.00 TL</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Toplam Maliyet</div>
+      <div class="value" id="totalMaliyet">0.00 TL</div>
     </div>
     <div class="summary-card">
       <div class="label">Toplam Yatirim</div>
@@ -288,12 +277,12 @@
     <h2>Yeni Islem Ekle</h2>
     <div class="form-row">
       <div class="form-group">
-        <label>Miktar (gram)</label>
-        <input type="number" id="inputGrams" placeholder="0.00" step="any" min="0">
-      </div>
-      <div class="form-group">
         <label>Kur (TL/gram)</label>
         <input type="number" id="inputRate" placeholder="0.00" step="any" min="0">
+      </div>
+      <div class="form-group">
+        <label>Miktar (gram)</label>
+        <input type="number" id="inputGrams" placeholder="0.00" step="any" min="0">
       </div>
       <div class="form-group">
         <label>Tarih</label>
@@ -333,7 +322,8 @@
 
 <script>
 const STORAGE_KEY = 'altin_alsatlar';
-let currentLivePrice = 0; // global live price as a raw number
+const KUR_STORAGE_KEY = 'altin_guncel_kur';
+let currentLivePrice = 0;
 
 function getTransactions() {
   try {
@@ -349,23 +339,25 @@ function formatNumber(n, decimals = 2) {
   return n.toLocaleString('tr-TR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-function setLivePrice(price, source) {
-  currentLivePrice = price;
-  const el = document.getElementById('livePrice');
-  const timeEl = document.getElementById('livePriceTime');
-  el.textContent = formatNumber(price) + ' TL';
-  el.className = 'price';
-  timeEl.textContent = source + ' - ' + new Date().toLocaleTimeString('tr-TR');
-  render();
-}
-
 function setManualPrice() {
   const val = parseFloat(document.getElementById('manualPrice').value);
   if (!val || val <= 0) {
     alert('Gecerli bir fiyat girin.');
     return;
   }
-  setLivePrice(val, 'Manuel');
+  currentLivePrice = val;
+  localStorage.setItem(KUR_STORAGE_KEY, val);
+  document.getElementById('currentPrice').textContent = formatNumber(val) + ' TL';
+  render();
+}
+
+function loadSavedPrice() {
+  const saved = parseFloat(localStorage.getItem(KUR_STORAGE_KEY));
+  if (saved && saved > 0) {
+    currentLivePrice = saved;
+    document.getElementById('currentPrice').textContent = formatNumber(saved) + ' TL';
+    document.getElementById('manualPrice').value = saved;
+  }
 }
 
 function addTransaction(type) {
@@ -408,8 +400,10 @@ function deleteTransaction(id) {
 function calculateSummary(txs) {
   let totalGrams = 0;
   let totalCost = 0;
-  let realizedPL = 0; // profit/loss from completed sales
+  let realizedPL = 0;
   let totalSoldGrams = 0;
+  let totalBuyAmount = 0;
+  let totalSellAmount = 0;
 
   const sorted = [...txs].sort((a, b) => a.id - b.id);
 
@@ -417,6 +411,7 @@ function calculateSummary(txs) {
     if (tx.type === 'buy') {
       totalCost += tx.grams * tx.rate;
       totalGrams += tx.grams;
+      totalBuyAmount += tx.grams * tx.rate;
     } else {
       const avgAtSell = totalGrams > 0 ? totalCost / totalGrams : 0;
       const costOfSold = avgAtSell * tx.grams;
@@ -425,6 +420,7 @@ function calculateSummary(txs) {
       totalCost -= costOfSold;
       totalGrams -= tx.grams;
       totalSoldGrams += tx.grams;
+      totalSellAmount += sellRevenue;
       if (totalGrams < 0) totalGrams = 0;
       if (totalCost < 0) totalCost = 0;
     }
@@ -432,7 +428,7 @@ function calculateSummary(txs) {
 
   const avgCost = totalGrams > 0 ? totalCost / totalGrams : 0;
 
-  return { totalGrams, avgCost, totalCost, realizedPL, totalSoldGrams };
+  return { totalGrams, avgCost, totalCost, realizedPL, totalSoldGrams, totalBuyAmount, totalSellAmount };
 }
 
 function render() {
@@ -464,21 +460,19 @@ function render() {
   const summary = calculateSummary(txs);
   document.getElementById('totalGrams').textContent = formatNumber(summary.totalGrams, 4);
   document.getElementById('avgCost').textContent = formatNumber(summary.avgCost) + ' TL';
-  document.getElementById('totalInvested').textContent = formatNumber(summary.totalCost) + ' TL';
+  document.getElementById('totalMaliyet').textContent = formatNumber(summary.totalBuyAmount - summary.totalSellAmount) + ' TL';
+  const totalInvestedValue = summary.totalGrams > 0 && currentLivePrice > 0 ? summary.totalGrams * currentLivePrice : summary.totalCost;
+  document.getElementById('totalInvested').textContent = formatNumber(totalInvestedValue) + ' TL';
 
-  // P/L: realized (from sales) + unrealized (current holdings vs live price)
+  // P/L
   const plEl = document.getElementById('profitLoss');
   const hasHoldings = summary.totalGrams > 0;
   const hasSales = summary.totalSoldGrams > 0;
   const hasLive = currentLivePrice > 0;
 
   if (hasHoldings && hasLive) {
-    // unrealized P/L on current holdings
     const unrealizedPL = (summary.totalGrams * currentLivePrice) - summary.totalCost;
     const totalPL = summary.realizedPL + unrealizedPL;
-    // % based on total money ever put in (current cost + realized gains already extracted)
-    const totalBasis = summary.totalCost + (summary.realizedPL < 0 ? 0 : 0); // use current cost for %
-    const totalInflow = summary.totalCost - summary.realizedPL; // approximate original total cost
     const plPct = summary.totalCost > 0 ? (totalPL / summary.totalCost) * 100 : 0;
     plEl.textContent = (totalPL >= 0 ? '+' : '') + formatNumber(totalPL) + ' TL (' + (totalPL >= 0 ? '+' : '') + formatNumber(plPct, 1) + '%)';
     if (summary.realizedPL !== 0) {
@@ -486,17 +480,16 @@ function render() {
     }
     plEl.className = 'value ' + (totalPL >= 0 ? 'green' : 'red');
   } else if (!hasHoldings && hasSales) {
-    // All sold - only realized P/L
     const pl = summary.realizedPL;
     plEl.textContent = (pl >= 0 ? '+' : '') + formatNumber(pl) + ' TL (gerceklesmis)';
     plEl.className = 'value ' + (pl >= 0 ? 'green' : 'red');
   } else if (hasHoldings && !hasLive) {
     if (hasSales && summary.realizedPL !== 0) {
       const pl = summary.realizedPL;
-      plEl.textContent = (pl >= 0 ? '+' : '') + formatNumber(pl) + ' TL (satis kari, canli fiyat yok)';
+      plEl.textContent = (pl >= 0 ? '+' : '') + formatNumber(pl) + ' TL (satis kari, guncel kur girin)';
       plEl.className = 'value ' + (pl >= 0 ? 'green' : 'red');
     } else {
-      plEl.textContent = '- TL (canli fiyat girin)';
+      plEl.textContent = '- TL (guncel kur girin)';
       plEl.className = 'value';
     }
   } else {
@@ -505,77 +498,10 @@ function render() {
   }
 }
 
-// Parse Turkish formatted number string like "3.245,67" to 3245.67
-function parseTrNumber(str) {
-  if (typeof str === 'number') return str;
-  if (!str) return 0;
-  return parseFloat(String(str).replace(/\./g, '').replace(',', '.')) || 0;
-}
-
-// Live price fetch with multiple fallbacks
-async function fetchLivePrice() {
-  const el = document.getElementById('livePrice');
-  const timeEl = document.getElementById('livePriceTime');
-  el.textContent = 'Yukleniyor...';
-  el.className = 'price loading';
-
-  const apis = [
-    async () => {
-      const res = await fetch('https://finans.truncgil.com/v4/today.json');
-      if (!res.ok) throw new Error('not ok');
-      const data = await res.json();
-      const gram = data['gram-altin'] || data['gram-altın'];
-      if (!gram) throw new Error('no gram-altin key');
-      const price = parseTrNumber(gram.Alis || gram.alis || gram.Satis || gram.satis);
-      if (price <= 0) throw new Error('invalid price');
-      return price;
-    },
-    async () => {
-      const res = await fetch('https://api.genelpara.com/embed/altin.json');
-      if (!res.ok) throw new Error('not ok');
-      const data = await res.json();
-      const gram = data['GA'] || data['gram-altin'];
-      if (!gram) throw new Error('no GA key');
-      const price = parseTrNumber(gram.alis || gram.satis);
-      if (price <= 0) throw new Error('invalid price');
-      return price;
-    },
-    async () => {
-      const res = await fetch('https://api.collectapi.com/economy/goldPrice', {
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (!res.ok) throw new Error('not ok');
-      const data = await res.json();
-      if (!data.success || !data.result) throw new Error('no result');
-      const gram = data.result.find(r => r.name && r.name.includes('Gram'));
-      if (!gram) throw new Error('no gram');
-      const price = parseFloat(gram.buying || gram.price);
-      if (price <= 0) throw new Error('invalid price');
-      return price;
-    }
-  ];
-
-  for (const apiFn of apis) {
-    try {
-      const price = await apiFn();
-      setLivePrice(price, 'Otomatik');
-      return;
-    } catch {
-      // try next
-    }
-  }
-
-  // All APIs failed
-  el.textContent = 'Fiyat alinamadi';
-  el.className = 'price loading';
-  timeEl.textContent = 'Sagdaki alana manuel fiyat girin';
-}
-
 // Init
 document.getElementById('inputDate').value = new Date().toISOString().split('T')[0];
+loadSavedPrice();
 render();
-fetchLivePrice();
-setInterval(fetchLivePrice, 5 * 60 * 1000);
 </script>
 </body>
 </html>
